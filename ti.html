@@ -1,0 +1,612 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Galería de Recuerdos — Feliz Navidad</title>
+<style>
+  body{
+    margin:0;
+    font-family: Arial, Helvetica, sans-serif;
+    background: linear-gradient(120deg,#2c5364,#203a43,#0f2027);
+    color:#fff;
+    overflow-x:hidden;
+  }
+  h1{text-align:center;margin:24px 0;}
+  .galeria{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px,1fr));
+    gap:15px;
+    padding:20px;
+    max-width:1200px;
+    margin:auto;
+  }
+  .card{
+    perspective:1000px;
+    cursor:pointer;
+    position:relative;
+  }
+  .card-inner{
+    aspect-ratio:1/1;
+    transition:transform .6s;
+    transform-style:preserve-3d;
+    border-radius:12px;
+    position:relative;
+    overflow:visible;
+    width:100%;
+    display:block;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+    background:#111;
+  }
+  .card.flipped .card-inner{transform:rotateY(180deg)}
+  .card-front,.card-back{
+    position:absolute;
+    inset:0;
+    backface-visibility:hidden;
+    border-radius:12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+  }
+  .card-front img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    display:block;
+  }
+  .card-back{
+    background:linear-gradient(135deg,#ffecd2,#fcb69f);
+    transform:rotateY(180deg);
+    padding:12px;
+    color:#3b2f2f;
+    font-weight:700;
+    text-align:center;
+  }
+  .card-back p{padding:8px;margin:0;font-size:0.95rem}
+
+  /* Overlay */
+  .overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.85);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:9999;
+  }
+  .overlay-panel{
+    background:#ffe6f2;
+    padding:28px;
+    border-radius:18px;
+    max-width:800px;
+    text-align:center;
+    color:#4a2b2b;
+    animation:pop .4s ease;
+  }
+  @keyframes pop{
+    from{opacity:0;transform:scale(.9)}
+    to{opacity:1;transform:scale(1)}
+  }
+  .close-btn{
+    background:#b02e2e;
+    color:#fff;
+    border:none;
+    padding:10px 16px;
+    border-radius:10px;
+    font-weight:700;
+    cursor:pointer;
+  }
+
+  /* Panel para pegar frases */
+  .frases-panel{
+    position:fixed;
+    right:12px;
+    top:80px;
+    width:320px;
+    max-width:calc(100vw - 24px);
+    background:rgba(255,255,255,0.95);
+    color:#222;
+    border-radius:12px;
+    padding:12px;
+    z-index:9998;
+    box-shadow:0 8px 30px rgba(0,0,0,0.4);
+    display:none;
+  }
+  .frases-panel textarea{width:100%;height:220px;border-radius:8px;padding:8px;border:1px solid #ddd;resize:vertical}
+  .frases-panel button{margin-top:8px;padding:8px 10px;border-radius:8px;border:none;background:#2c7a7a;color:#fff;cursor:pointer}
+
+  /* Controles de música (fijos) */
+  .music-control{
+    position:fixed;
+    left:12px;
+    top:12px;
+    z-index:10001;
+    display:flex;
+    gap:8px;
+    align-items:center;
+    background:rgba(0,0,0,0.45);
+    padding:8px;
+    border-radius:10px;
+  }
+  .music-control button{background:#ffffff22;border:1px solid #fff2;color:#fff;padding:6px 8px;border-radius:8px;cursor:pointer}
+  .music-control input[type="range"]{width:100px}
+
+  /* Emojis cayendo */
+  .falling{
+    position:fixed;
+    top:-50px;
+    font-size:26px;
+    animation:fall linear infinite;
+    pointer-events:none;
+    z-index:10000;
+    will-change:transform;
+  }
+  @keyframes fall{
+    to{transform:translateY(110vh) rotate(360deg)}
+  }
+  @media (max-width:420px){
+    .overlay-panel{margin:12px}
+    .music-control input[type="range"]{width:64px}
+  }
+</style>
+</head>
+<body>
+
+<h1>💖 Mis 200 Recuerdos 💖</h1>
+<div class="galeria" id="galeria" aria-live="polite"></div>
+
+<!-- Overlay -->
+<div class="overlay" id="overlay" role="dialog" aria-modal="true">
+  <div class="overlay-panel" role="document">
+    <h2>¡Feliz Navidad mi amosito dimda! 🎄✨</h2>
+    <p>
+      Hoy que se entregan regalos, yo te daré 200 razones y 200 palabras por las cuales te amo.
+      Eres el mayor regalo que me dio Diosito este año fuiste tú 💖
+    </p>
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      <button class="close-btn" id="closeOverlay">Cerrar ✨</button>
+      <button class="close-btn" id="openFrasesPanel">Pegar frases</button>
+      <button class="close-btn" id="cargarDesdeArchivo">Cargar frases.txt</button>
+    </div>
+    <p style="margin-top:10px;font-size:0.9rem;color:#3b2f2f">Puedes: pegar 200 frases (1 por línea) o subir un archivo <code>frases.txt</code> con 200 líneas. Si no, se rellenan automáticamente.</p>
+  </div>
+</div>
+
+<!-- Panel para pegar frases manualmente -->
+<div class="frases-panel" id="frasesPanel" aria-hidden="true">
+  <strong>Pega aquí tus frases (1 por línea)</strong>
+  <textarea id="frasesPaste" placeholder="Frase 1&#10;Frase 2&#10;..."></textarea>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button id="aplicarFrases">Aplicar frases</button>
+    <button id="cerrarFrases">Cerrar</button>
+  </div>
+</div>
+
+<!-- Controles de música -->
+<div class="music-control" aria-hidden="false">
+  <button id="playBtn">▶️</button>
+  <button id="muteBtn">🔈</button>
+  <input id="volRange" type="range" min="0" max="1" step="0.05" value="0.7" title="Volumen">
+  <span id="musicStatus" style="color:#fff;font-size:0.9rem;margin-left:6px">Silencio</span>
+</div>
+
+<!-- Elemento de audio (coloca tu canción aquí) -->
+<audio id="music" src="videollamada.mp3" preload="auto" loop></audio>
+
+<script>
+  // Primero: tus frases base (las primeras que quieres garantizar)
+  const frasesBase = [
+    "Siempre contigo ❤️",
+    "Tu sonrisa es mi paz ✨",
+    "Cada momento a tu lado vale oro 💕",
+    "Eres mi lugar seguro 🌙",
+    "Contigo todo es mejor 💖",
+    "Eres ese recuerdo que nunca se olvida ✨",
+    "Te amo mi reina hermosa 💘",
+    "Siempre le doy gracias a Dios por ponerte en mi camino",
+    "Eres el deseo cuando son las 11:11",
+    "No hay nada mejor que pasar mi vida contigo 💘",
+    "Eres mi llamada favorita 💘",
+    "Mi personita favorita",
+    "Gracias por compartir tu vida conmigo mi titita mosha 💘",
+    "En tus ojos encontré mi hogar.",
+    "Amarte es mi forma favorita de vivir.",
+    "Eres el sueño que nunca quiero despertar.",
+    "Mi corazón te eligió sin dudar.",
+    "Cada latido de mi corazón dice tu nombre.",
+    "Tu sonrisa ilumina mis días.",
+    "Eres mi paz en medio del caos.",
+    "Amarte es tan natural como respirar.",
+    "Tu amor es mi refugio.",
+    "Eres el amor q le da vida a mi vida",
+    "Mientras duermes, le pido a Dios, que cuide de ti, porque eres mi mayor tesoro. te amo mi niña mosha 🥺💕",
+    "Eres mi premio",
+    "Eres mi escudo",
+    "Tus sueños son mis sueños",
+    "Tus deseos son mis deseos ",
+    "Tus metas mis metas",
+    "Tú eres un regalo de Dios",
+    "Aprendo junto a ti ",
+    "Tu forma de ser conmigo es pura",
+    "Claro qué quiero todo contigo será difícil lo se, Pero si me dijeras pasaremos cualquier etapa juntitos ya verás 🥺📎💕",
+    "Nunca te dejaré ni te desampararé - hebreos 13:5",
+    "Quisiera darte el mundo entero, porque realmente te lo mereces, eres todo lo q siempre quise y nunca llegaba, puedo darte lo mejor de mi, cada día me esfuerzo más para que te sientas aún mejor conmigo,te estoy entrando todo mi amor para q sepas lo mucho q vales para mí 🥺💗",
+    "Tú eres la mujer de la cual voy a vivir locamente enamorado. 💞",
+    "ayer tú, hoy tú, mañana tú, y para siempre serás tú mi amor 😍❤️",
+    "Qué bonito detalle tuvo Dios conmigo al traerte a mi vida.❤️",
+    "Mi niña prechocha, nunca olvides lo importante que eres para mí y lo mucho que me importas como te sientes yo siempre te quiero ver feliz 💟💕",
+    "Gracias por estar en momentos difíciles y pues más que nada siempre te apoyaré en todo mi niña sabes que eres el amor de mi vida 😍💞",
+    "Eres demasiado linda si, solo al conocerte tus ojitos y tú sonrisa fue mi debilidad. 🥺💗",
+    "Eres la niña más hermosa del mundo. 💗",
+    "Contigo descubrí que algunos sentimientos no se explican, solo se sienten, y contigo todo se siente mejor.❣️❤️‍🔥",
+    "Que Dios nos cuide y nos permita tener un futuro juntos a pesar de las dificultades que vengan. 🤍 Te amo 💝🫅",
+    "Solo Dios sabe que mi mayor deseo es construir un futuro contigo y amarte por el resto de mi vida, porqué lo eres todo para mí. 💗",
+    "No sé cómo agradecerte por todo lo q eres en mi vida. 💗",
+    "A veces siento que las palabras no alcanzan para expresar lo que significas para mí, Pero lo que si tengo claro es que eres mi mayor regalo y siempre voy a cuidar este amor que compartimos 💗🫶",
+    "Siempre tú, en todas mis versiones.",
+    "Feliz, enamorado, obsesionado y adicto a ti que eres mi mujer.💕🫶",
+    "Guapa mía, te amooooooooo. 🥺🫶📎",
+    "Cuando digo que te amo, te hablo de muchos sueños, de mil sonrisas y de una vida juntos. 🥺💕",
+    "Cuando digo que es contigo, solo espero que te atrevas, que sujetes mi mano muy fuerte y que nunca tengas miedo, porque a tu lado quiero todo, sin condiciones y para siempre 💕🥺📎",
+    "Prometo amarte toda la vida, así como lo dices 1 Corintios 13:4-7",
+    "Mi corazón te ama demasiado y mi mente no te deja de pensar, lo único que quiero es estar mien contigo 🥺💘",
+    "Eres el amor bonito que siempre soñé tener en mi corazón ❤️‍🩹",
+    "Tal vez no sea perfecto, Pero créeme, te amo con todo mi tolachon 🥺💗",
+    "💌 Te amo más de lo que mis palabras pueden explicar. 🥺💗",
+    "Este amor que siento por ti es tan real y verdadero como el aire que respiro 💗💌",
+    "Te amo en todo tiempo, te amo cada día más. Eres mi vida. 💗",
+    "Miles y millones de ojos Pero yo solo quiero mirar los tuyos 💕💘",
+    "Mi amor ❤️ aunque está navidad 🎄 no podemos estar juntos 🥺💗, quiero que sepas que te amo 💞 con todo mi corazón 💘",
+    "La distancia 🌏 no apaga lo nuestro 🔥, al contrario... hace que te piense más 🥺☁️ y te amare toda la vida 🥺💕",
+    "Graciass por darme la relación mas bonita del mundo, te amo demasiado amor mío. 🫂💗🫧",
+    "Es bonito sentir tu amor incluso sin tocarnos, sin besarnos y estando tan lejos el uno al otro 💕💝❤️",
+    "Te parece bien que te quiera nada más para casarnos? 🥺",
+    "Solo casarnos tener dos hijas, abrir varios negocios, hacer carne asada los domingos, ir a la playa en vacaciones y vivir felices para siempre 🥺🫶😻😻",
+    "De la manera más celosa posible quiero que tus labios, tu cara, tu corazón y tu cuerpo sean solo míos ¿ok? 🙈😻",
+    "Que el amor de Dios llene tu corazón 🫶 y bendiga nuestro amor para que sigamos construyendo juntos momentos inolvidables te amo hoy mañana y siempre 🥺💗🎁🎀",
+    "Tus locuras van con el mis locuras 🤍 ",
+    "te amo 3 millones ❤️‍🩹",
+    "Tu siempre mi camino y siempre serás mi camino 😍❤️‍🩹",
+    "Mientras usted exista mi amor, siempre va a ser mi debilidad oyó mi titita mosha 🥺💕",
+    "Sé que no será fácil, Pero enserio  quiero que seamos tú y yo durante mucho tiempo 🥺💕🫶",
+    "Mi alma te eligió 💫❤️",
+    "Contigo todo se siente hogar 🏡💘",
+    "Mi mundo eres tú 🌍❤️",
+    "Mi corazón te pertenece 💓🔐",
+    "Amarte es mi felicidad 💘😊",
+    "Contigo quiero todo 💍💞",
+    "Mi amor te acompaña siempre 🚶‍♂️🚶‍♀️💖",
+    "Eres mi sueño real ✨❤️",
+    "Amarte no fue una casualidad, fue una bendición que llegó a mi vida para enseñarme lo que es el amor verdadero 💘✨",
+    "Contigo aprendí que el amor no se grita, se demuestra en los detalles, en la paciencia y en el corazón ❤️🌷",
+    "Mi lugar favorito no es un sitio, es tu cuando me hablas titito, porque ahí todo se calma y todo está bien 🤗💞",
+    "No importa la distancia ni el tiempo, mi corazón siempre sabe dónde encontrarte 💓🌍",
+    "Eres esa persona que llegó sin avisar y se quedó para siempre en mi alma y creeme que me encanta que paso ashi 💫💖",
+    "Cuando pienso en el futuro, siempre apareces tú, porque no sé imaginar una vida donde no estés a mi lado 💍💘",
+    "Amarte es despertar con ilusión, dormir con esperanza y soñar contigo cada noche 🌙💞",
+    "Mi amor por ti no entiende de dudas, solo sabe crecer y cuidarte cada día más 🌱❤️",
+    "Eres el regalo más bonito que Dios me dio, y prometo valorarte todos los días de mi vida 🙏💝",
+    "Contigo descubrí que el amor no pesa, no duele, no cansa… cuando es real, se siente en paz 🕊️💘",
+    "Mi sonrisa tiene tu nombre y mi corazón aprendió a latir diferente desde que llegaste 😊💓",
+    "A tu lado quiero los días buenos y también los difíciles, porque amarte es quedarme siempre 💕🤝",
+    "No necesito promesas perfectas, solo necesito tu mano y tu amor sincero 💍🤍",
+    "Eres mi pensamiento constante, mi sueño despierto y mi realidad favorita 💭💖",
+    "Te amo como Hello Kitty ama a sus amigos, con un corazón puro y sincero 🐱💖🎀",
+    "Te amo hoy, mañana y en todas las vidas que existan 💘♾️",
+    "Te amo aunque un país nos separe, porque mi corazón siempre sabe llegar hasta ti 🇨🇴❤️🇲🇽",
+    "Mi corazón no se equivoca cuando se trata de ti 💓✨",
+    "Te amo incluso en mis días más difíciles, porque tu paciencia siempre me sostiene ✨",
+    "Contigo el amor se siente tranquilo, sincero y verdadero 🕊️❤️",
+    "La distancia entre México y Colombia no puede con todo lo que siento por ti 🌎💖",
+    "Eres mi siempre, incluso en los días difíciles 💍💞",
+    "Te amo cuando pierdo el rumbo, porque tú me cuidas sin juzgar 🌸💖",
+    "Amarte es agradecerle a la vida todos los días 💖🙏",
+    "Te amo a kilómetros de distancia, pero cerquita del corazón 💞",
+    "Mi alma te reconoce incluso en el silencio 💫🤍",
+    "Te amo en mis momentos más torpes, porque tú nunca sueltas mi mano 🤎💖",
+    "No quiero una vida perfecta, solo una vida contigo 💕🏡",
+    "Aunque no pueda abrazarte hoy, mi amor te cuida desde Colombia hasta México 🤍🌍",
+    "Eres mi debilidad más bonita y mi fortaleza más grande 💓💪",
+    "La distancia duele, pero amarte vale cada espera 💕⏳",
+    "Contigo puedo ser yo, contigo no me da miedo sacar mi yo, mi niño titito ta muy feliz contigo mi titita mosha 💍🤍",
+    "Te amo incluso lejos, porque nuestro amor no conoce fronteras 🌎💘",
+    "eres mi debilidad favorita 💍🤍",
+    "Te amo con un amor que viaja kilómetros solo para alcanzar tu hermoso corazón ✈️💖",
+    "Siempre que se trata de ti mi tolachon late mas lapilo y mi respiracion se acelera 💍🤍",
+    "Te amo como Hello Kitty, sin condiciones y con dulzura infinita 🐱💕",
+    "Mi futuro tiene tu sonrisa, tu voz y tu amor 😊💍",
+    "Aunque estemos lejos, mi corazón siempre duerme contigo 🌙💞",
+    "Amarte me enseñó que el amor verdadero no se fuerza, fluye 🌊❤️",
+    "La distancia solo me recuerda lo fuerte que es lo nuestro 🌎❤️",
+    "Eres la respuesta que mi corazón siempre estuvo esperando 💘✨",
+    "La distancia no enfría lo que nace del corazón y menos lo que siento por ti mi titita moshita 💞🔥",
+    "Te amo como Hello Kitty ama, suave, bonito y desde el corazón 🐱💓✨",
+    "Esta Navidad estás lejos,pero en mi corazón estás cerca.Mi mejor regalo: tú 🎄💖",
+    "Te amo en cada mensaje, en cada llamada y en cada espera 📱💖",
+    "Tú eres la razón por la que sonrío 😊💖",
+    "Aunque el abrazo tarde, el amor llega siempre 🤍🌍",
+    "Tú eres la razón por la que mi corazón late más fuerte 💓✨",
+    "La distancia nos pone a prueba, pero el amor siempre gana y obvio que el amor nuestro siempre va a ganar mi cachetonchita mosha💕♾️",
+    "Te amo al estilo Hello Kitty, con amor, ternura y muchos abrazos 🐱🤍🎀",
+    "Tú eres la razón por la que creo en el amor 💘🌸",
+    "Te amo incluso lejos, porque mi amor no necesita estar cerca para cuidarte 🕊️💞",
+    "Tú eres la razón por la que me despierto con ilusión ☀️💞",
+    "De México a Colombia, mi amor por ti no se pierde 🌎💖",
+    "Tú eres la razón por la que mis días son más bonitos 🌷❤️",
+    "La distancia es dura, pero nuestro amor es más fuerte 💪❤️",
+    "Te amo como Hello Kitty cuida a quienes ama, siempre y sin soltarte 🐱🤗💞",
+    "Tú eres la razón por la que mi alma está en paz 🕊️💖",
+    "Te amo con un amor paciente, que espera y confía ⏳💞",
+    "Tú eres la razón por la que no me rindo 💪💞",
+    "Aunque estemos lejos, mi corazón siempre sabe dónde estás 💓🌍",
+    "Te amo como Masha ama al Oso: con locura, ternura y un amor que nunca se cansa 🐻🌸💖",
+    "Tú eres la razón por la que mi vida tiene sentido ✨💓",
+    "Este 24 de diciembre, aunque la distancia nos separe, mi mejor regalo eres tú 🎄💖",
+    "Tú eres la razón por la que sonrío sin darme cuenta 😊💘",
+    "No importa que estemos lejos en Navidad, porque mi corazón celebra contigo 🎄💞🌍",
+    "Te amo como el Oso cuida a Masha, con paciencia, protección y un corazón enorme 🐻🤎✨",
+    "Tú eres la razón por la que mi corazón te eligió 💍💖",
+    "Este 24 no te puedo abrazar, pero te regalo todo mi amor desde Colombia hasta México. Te amo miprincheshita mosha 🎁❤️",
+    "Tú eres la razón por la que creo en el amor  para siempre ♾️💖",
+    "La distancia duele un poco más en Navidad, pero saber que te tengo lo compensa todo 🎄🥺💖",
+    "Tú eres la razón por la que me siento en casa 🏡💓",
+    "Mi regalo favorito este 24 de diciembre no viene en una caja, viene con tu nombre 🎁💞",
+    "Tú eres la razón por la que mi corazón se calma 🕊️💞",
+    "Te amo incluso en el desorden, así como el Oso ama a Masha todos los días 🐻🏡❤️",
+    "Tú eres la razón por la que me siento amado ❤️😊",
+    "Aunque no estemos juntos bajo el mismo árbol, mi amor siempre está contigo 🎄🌟💖",
+    "Tú eres la razón por la que sonrío incluso triste 😌💖",
+    "Esta Navidad no te daré cosas, te doy mi corazón completo, incluso a kilómetros de distancia 💓🎄🌍",
+    "Tú eres la razón por la que mis sueños tienen tu nombre 💭💞",
+    "El mejor regalo de esta Nochebuena eres tú, aun desde lejos 🎄💖♾️",
+    "Te amo con la alegría de Masha y la calma del Oso 🐻😊💖",
+    "Tú eres la razón por la que todo vale la pena ✨💖",
+    "La distancia no apaga la magia de esta Navidad, porque tú iluminas mi corazón ✨🎄💞",
+    "Tú eres la razón por la que mi corazón sonríe 💓😊",
+    "Este 24 de diciembre le agradezco a Dios por ti, mi regalo más bonito 🙏🎄💖",
+    "Tú eres la razón por la que me siento seguro 🔐💞",
+    "Aunque estemos en países distintos, mi amor llega puntual a tu corachon en esta Navidad 🎄⏳💞",
+    "Tú eres la razón por la que el amor es bonito 🌸💞",
+    "Contigo soy Masha feliz y tú eres mi Oso protector 🐻🌸💖",
+    "Tú eres la razón por la que no me siento solo 🤍💖",
+    "Mi Navidad es pensar en ti, incluso desde lejos 🎄💭💖",
+    "Tú eres la razón por la que mi corazón te pertenece 💓🔐",
+    "No necesito más regalos este 24, con tenerte en mi vida es suficiente 🎁❤️🎄",
+    "No se que mas decir jsjsj pero  te amo mi reina ⏳💞",
+    "La distancia nos separa, pero esta Navidad nos promete un conocernos 🎄💞✨",
+    "Tú eres la razón por la que sonrío al pensarte 💭😊",
+    "Este 24 de diciembre mi deseo eres tú, hoy y siempre 🎄💖🌟",
+    "Te amo incluso cuando me vuelvo un caos, porque tú siempre sabes cuidarme 🐻🌸💞",
+    "Tú eres la razón por la que mi sonrisa no se apaga 😊💓",
+    "Aunque no pueda darte un beso bajo el cielo estrellado, mi amor sí llega hasta ti 🎄💋💞",
+    "Nos vamos a casar con el favor de Dios💍💖 ",
+    "Esta Navidad aprendí que el mejor regalo no se envuelve, se ama 🎁💖🎄",
+    "Mi culona hermosha te amo musho, mi titita mosha tu papi te adora 💍💖",
+    "Este 24 de diciembre, mi corazón te elige como su regalo eterno 🎄💖💍",
+    "Te amo aun cuando todo en mí es un desastre, porque tú siempre sabes traerme calma 💞🌸",
+    "Desde Colombia hasta México, mi amor te desea Feliz Navidad 🎄❤️",
+    "La distancia no puede quitarle valor al regalo que eres para mí 🎄💓♾️",
+    "perdón si insisto demasiado o si te molesto mucho, es que de verdad quiero q seas tu, de verdad quiero demostrarte cuánto te quiero y cuánto deseo que seas tu 🥺❤️‍🩹💗",
+    "Al final lo mejor del año fuiste tu mi amor 💕🫶",
+    "Hoy celebro no solo el regalo De esta fecha tan especial si no también el regalo de tenerte en mi vida 😍🧬",
+    "El mejor regalo de navidad Es tenerte a mi lado 🫂❤️‍🩹❤️‍🔥",
+    "Hoy 24 de diciembre, quiero recordarte que eres lo más bonito que puedo tener en mi vida, Te amooooooo 😻💖",
+    "La distancia no me quita las ganas de estar contigo, solo me hace imaginar con más anhelo el día en que por fin estemos cerca amosito 🥺💗",
+    "Me encantaría construir recuerdos contigo, disfrutar del progreso, apoyarnos en absolutamente todo y celebrar juntos cada logro cumplidos 🥺💗🫶",
+    "No lo digo solo por compartir el comienzo de un juego año, sino porque quiero que seas parte de mis días, mis planes y mis metas. 🥺💘🫶",
+    "AMOR MIO. Te gustaría iniciar el 2026 conmigo?🥺🫧📎",
+    "Gracias por tú amor, tú paciencia, tú compañía y por llenar mis días de alegría. 📎💖😻",
+    "Feliz navidad mi amor. 🎄💗"
+  ];
+
+  const TOTAL = 200;
+  let frasesCargadas = []; // aquí estarán las frases finales
+
+  // Intenta cargar frases desde 'frases.txt' (misma carpeta)
+  async function tryLoadFromFile(){
+    try{
+      const res = await fetch('frases.txt', {cache: "no-store"});
+      if(!res.ok) throw new Error('no encontrado');
+      const text = await res.text();
+      const lines = text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+      if(lines.length) return lines;
+    }catch(e){
+      // no encontrado o error -> retorna null para usar por defecto
+    }
+    return null;
+  }
+
+  // Si el usuario pega frases en el textarea se aplican con this function:
+  function applyPastedFrases(text){
+    const lines = text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    if(lines.length === 0) return false;
+    frasesCargadas = buildFinalFrases(lines);
+    rebuildGaleria();
+    return true;
+  }
+
+  // Recibe un array de frases (puede ser menos que TOTAL) y devuelve array de length TOTAL
+  function buildFinalFrases(lines){
+    const out = [];
+    for(let i=0;i<TOTAL;i++){
+      out[i] = lines[i] ?? frasesBase[i] ?? `Recuerdo ${i+1}`;
+    }
+    return out;
+  }
+
+  // Construye la galería usando frasesCargadas y fotos fotoN.jpeg
+  const galeria = document.getElementById('galeria');
+  function rebuildGaleria(){
+    galeria.innerHTML = '';
+    const frag = document.createDocumentFragment();
+    for(let i=0;i<TOTAL;i++){
+      const n = i+1;
+      const frase = frasesCargadas[i];
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.tabIndex = 0;
+      card.setAttribute('role','button');
+      card.setAttribute('aria-pressed','false');
+      card.innerHTML = `
+        <div class="card-inner">
+          <div class="card-front">
+            <img src="foto${n}.jpeg" alt="Recuerdo ${n}" loading="lazy">
+          </div>
+          <div class="card-back"><p>${escapeHtml(frase)}</p></div>
+        </div>
+      `;
+      card.addEventListener('click', ()=>{
+        card.classList.toggle('flipped');
+        card.setAttribute('aria-pressed', card.classList.contains('flipped'));
+      });
+      card.addEventListener('keydown', (e)=>{
+        if(e.key === 'Enter' || e.key === ' '){
+          e.preventDefault();
+          card.classList.toggle('flipped');
+          card.setAttribute('aria-pressed', card.classList.contains('flipped'));
+        }
+      });
+      const img = card.querySelector('img');
+      img.addEventListener('error', ()=>{
+        img.src = `https://via.placeholder.com/400x400/cccccc/333333?text=Foto+${n}`;
+        img.alt = `Foto ${n} no disponible`;
+      });
+      frag.appendChild(card);
+    }
+    galeria.appendChild(frag);
+  }
+
+  // Escape simple para evitar inyección en innerHTML de frases
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, (c)=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
+  }
+
+  // Inicialización: intenta cargar frases.txt, si no usar frasesBase + relleno
+  (async function init(){
+    const fromFile = await tryLoadFromFile();
+    if(fromFile && fromFile.length){
+      frasesCargadas = buildFinalFrases(fromFile);
+    }else{
+      // por defecto usar frasesBase y rellenar
+      frasesCargadas = buildFinalFrases(frasesBase);
+    }
+    rebuildGaleria();
+  })();
+
+  // ---- UI: overlay, panel de pegar frases, botones ----
+  const overlay = document.getElementById('overlay');
+  const closeOverlay = document.getElementById('closeOverlay');
+  const openFrasesPanelBtn = document.getElementById('openFrasesPanel');
+  const frasesPanel = document.getElementById('frasesPanel');
+  const cerrarFrasesBtn = document.getElementById('cerrarFrases');
+  const aplicarFrasesBtn = document.getElementById('aplicarFrases');
+  const frasesPaste = document.getElementById('frasesPaste');
+  const cargarDesdeArchivoBtn = document.getElementById('cargarDesdeArchivo');
+
+  closeOverlay.addEventListener('click', ()=>{ overlay.style.display='none'; document.body.style.overflow=''; });
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && overlay.style.display!=='none'){ overlay.style.display='none'; document.body.style.overflow=''; } });
+
+  openFrasesPanelBtn.addEventListener('click', ()=>{
+    frasesPanel.style.display = 'block';
+    frasesPanel.setAttribute('aria-hidden','false');
+    frasesPaste.focus();
+  });
+  cerrarFrasesBtn.addEventListener('click', ()=>{
+    frasesPanel.style.display = 'none';
+    frasesPanel.setAttribute('aria-hidden','true');
+  });
+  aplicarFrasesBtn.addEventListener('click', ()=>{
+    const ok = applyPastedFrases(frasesPaste.value);
+    if(ok){
+      frasesPanel.style.display = 'none';
+      frasesPanel.setAttribute('aria-hidden','true');
+      overlay.style.display = 'none';
+      document.body.style.overflow = '';
+    }else{
+      alert('No se detectaron frases en el área. Pega una frase por línea.');
+    }
+  });
+
+  // Botón "Cargar desde archivo" fuerza reintento de fetch (útil si antes no existía)
+  cargarDesdeArchivoBtn.addEventListener('click', async ()=>{
+    const fromFile = await tryLoadFromFile();
+    if(fromFile && fromFile.length){
+      frasesCargadas = buildFinalFrases(fromFile);
+      rebuildGaleria();
+      overlay.style.display='none';
+      document.body.style.overflow='';
+      alert('Frases cargadas desde frases.txt');
+    }else{
+      alert('No se encontró frases.txt en la carpeta, o está vacío. Crea un archivo llamado frases.txt con una frase por línea y vuelve a intentarlo.');
+    }
+  });
+
+  // ---- Música (play/pause, volumen, mute) ----
+  const audio = document.getElementById('music');
+  const playBtn = document.getElementById('playBtn');
+  const muteBtn = document.getElementById('muteBtn');
+  const volRange = document.getElementById('volRange');
+  const musicStatus = document.getElementById('musicStatus');
+
+  // Estado inicial
+  audio.volume = parseFloat(volRange.value);
+  updateMusicUI();
+
+  playBtn.addEventListener('click', async ()=>{
+    if(audio.paused){
+      try{
+        await audio.play(); // requiere user gesture en many browsers
+        playBtn.textContent = '⏸';
+      }catch(e){
+        alert('El navegador bloqueó la reproducción automática. Pulsa el botón de reproducir para permitirlo.');
+      }
+    }else{
+      audio.pause();
+      playBtn.textContent = '▶️';
+    }
+    updateMusicUI();
+  });
+
+  muteBtn.addEventListener('click', ()=>{
+    audio.muted = !audio.muted;
+    muteBtn.textContent = audio.muted ? '🔇' : '🔈';
+    updateMusicUI();
+  });
+
+  volRange.addEventListener('input', ()=>{
+    audio.volume = parseFloat(volRange.value);
+    if(audio.volume === 0) audio.muted = true;
+    else audio.muted = false;
+    muteBtn.textContent = audio.muted ? '🔇' : '🔈';
+    updateMusicUI();
+  });
+
+  audio.addEventListener('play', ()=>{ playBtn.textContent='⏸'; updateMusicUI(); });
+  audio.addEventListener('pause', ()=>{ playBtn.textContent='▶️'; updateMusicUI(); });
+  audio.addEventListener('volumechange', updateMusicUI);
+
+  function updateMusicUI(){
+    musicStatus.textContent = audio.paused ? 'Pausado' : 'Reproduciendo';
+    musicStatus.textContent += audio.muted ? ' (silenciado)' : '';
+  }
+
+  // Evitar scroll bloqueado al inicio (si quieres el overlay abierto, se bloquea)
+  document.body.style.overflow = 'hidden';
+
+  // Emojis cayendo
+  const emojis = ["🎄","❄️","🎀","❤️","🐱🎀"];
+  setInterval(()=>{
+    const e = document.createElement("div");
+    e.className = "falling";
+    e.textContent = emojis[Math.floor(Math.random()*emojis.length)];
+    e.style.left = Math.random()*100 + "vw";
+    e.style.animationDuration = (3 + Math.random()*3) + "s";
+    e.style.fontSize = (18 + Math.random()*18) + "px";
+    document.body.appendChild(e);
+    setTimeout(()=>e.remove(),9000);
+  },300);
+</script>
+
+</body>
+</html>
